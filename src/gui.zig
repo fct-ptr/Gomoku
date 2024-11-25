@@ -157,6 +157,12 @@ fn selectWhiteAndClose(_: *anyopaque) !void {
     player_plays_white = true;
     color_chosen = true;
     dialog.close();
+
+    // AI plays first move when player chooses white
+    const ai_move = turn.AIPlay();
+    std.debug.print("AI played on cell ({d}, {d})\n", .{ai_move[0], ai_move[1]});
+    if (try board.game_board.addWinningLine(ai_move[0], ai_move[1]))
+        game_won = true;
     try canva.requestDraw();
 }
 
@@ -164,12 +170,6 @@ fn selectBlackAndClose(_: *anyopaque) !void {
     player_plays_white = false;
     color_chosen = true;
     dialog.close();
-
-    // AI plays first move when player chooses black
-    const ai_move = turn.AIPlay();
-    std.debug.print("AI played on cell ({d}, {d})\n", .{ai_move[0], ai_move[1]});
-    if (try board.game_board.addWinningLine(ai_move[0], ai_move[1]))
-        game_won = true;
     try canva.requestDraw();
 }
 

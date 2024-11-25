@@ -129,7 +129,6 @@ const Pattern = struct {
 pub const HashMapContext = struct {
     pub fn hash(_: @This(), key: []const board.Cell) u64 {
         var h = std.hash.Fnv1a_32.init();
-        // const my_bytes = std.mem.toBytes(key);
         h.update(std.mem.sliceAsBytes(key));
         return h.final();
     }
@@ -167,7 +166,6 @@ const Evaluator = struct {
 
     fn explore(x: i32, y: i32, coord: Coordinates, current_board: board.Board, player: board.Cell, seq: []board.Cell) u32 {
         const opponent = if (player == board.Cell.own) board.Cell.opponent else board.Cell.own;
-        // var seq = std.ArrayList(board.Cell).init(allocator);
         var empty: usize = 0;
         var nb_seq: u32 = 0;
 
@@ -177,7 +175,6 @@ const Evaluator = struct {
             const cur_y = @as(i32, @intCast(coord.y)) + y * i;
 
             if (cur_x < 0 or cur_y < 0 or current_board.isCoordinatesOutside(@intCast(cur_x), @intCast(cur_y))) {
-                // try seq.append(opponent);
                 seq[nb_seq] = opponent;
                 nb_seq += 1;
                 break;
@@ -215,7 +212,7 @@ const Evaluator = struct {
         @memcpy(seq[0..nb_seq_a], seq_a[0..nb_seq_a]);
         nb_seq += nb_seq_a;
 
-        seq[nb_seq] = .own;
+        seq[nb_seq] = player;
         nb_seq += 1;
 
         var seq_b: [5]board.Cell = undefined;
@@ -274,7 +271,7 @@ const Evaluator = struct {
         }
     }
 
-    fn findPatterns(seq: []const board.Cell, a: usize, b: usize, patterns: []Pattern) u32 {
+    fn findPatterns(seq: []const board.Cell, a: usize, b: usize, patterns: []Pattern, player: board.Cell) u32 {
         var gap: usize = 0;
         var same: usize = 0;
         var started = false;
@@ -301,7 +298,7 @@ const Evaluator = struct {
                     if (same - 1 > 1) {
                         patterns[nb_pattern] = .{
                             .same = same - 1,
-                            .gap = gap - 1,
+                            .gap = 1,
                             .start_idx = start_idx,
                             .end_idx = end_idx,
                             .gap_idx = gap_idx,
@@ -311,7 +308,7 @@ const Evaluator = struct {
 
                     start_idx = end_idx;
                     var tmp: usize = 0;
-                    while (start_idx > 0 and seq[start_idx - 1] == cell) {
+                    while (start_idx > 0 and seq[start_idx - 1] == player) {
                         start_idx -= 1;
                         tmp += 1;
                     }
@@ -385,7 +382,7 @@ const Evaluator = struct {
                 const start_idx = 1;
                 const end_idx = seq.len - 2;
                 var patterns: [8]Pattern = undefined;
-                const nb_pattern = findPatterns(seq, start_idx, end_idx, &patterns);
+                const nb_pattern = findPatterns(seq, start_idx, end_idx, &patterns, player);
 
                 var i: u32 = 0;
                 while (i < nb_pattern) : (i += 1) {
@@ -397,7 +394,7 @@ const Evaluator = struct {
             }
         } else if (left_blocked) {
             var patterns: [8]Pattern = undefined;
-            const nb_pattern = findPatterns(seq, 1, seq.len - 1, &patterns);
+            const nb_pattern = findPatterns(seq, 1, seq.len - 1, &patterns, player);
 
             var i: u32 = 0;
             while (i < nb_pattern) : (i += 1) {
@@ -407,7 +404,7 @@ const Evaluator = struct {
             }
         } else if (right_blocked) {
             var patterns: [8]Pattern = undefined;
-            const nb_pattern = findPatterns(seq, 0, seq.len - 2, &patterns);
+            const nb_pattern = findPatterns(seq, 0, seq.len - 2, &patterns, player);
 
             var i: u32 = 0;
             while (i < nb_pattern) : (i += 1) {
@@ -417,7 +414,7 @@ const Evaluator = struct {
             }
         } else {
             var patterns: [8]Pattern = undefined;
-            const nb_pattern = findPatterns(seq, 0, seq.len - 1, &patterns);
+            const nb_pattern = findPatterns(seq, 0, seq.len - 1, &patterns, player);
 
             var i: u32 = 0;
             while (i < nb_pattern) : (i += 1) {
@@ -434,7 +431,7 @@ const Evaluator = struct {
 pub const Threat = struct {
     row: u16,
     col: u16,
-    score: i32,
+    score: i64,
 };
 
 // Comparison function for sorting threats by score in descending order
@@ -454,18 +451,15 @@ pub fn findThreats(map: []board.Cell, threats: []Threat, size: u32) u16 {
         while (col < size) : (col += 1) {
             const index = row_offset + col;
             if (map[index] == board.Cell.empty) {
-                // Evaluate empty position
-                // const score = evaluateMove(map, col, row, player, size);
-                // TODO: change to i64
-                const w_score = evaluator.evaluate(board.game_board, board.Cell.own, .{ .x = @intCast(col), .y = @intCast(row) }) catch  {
-                    // std.debug.print("Error: {}\n", .{err});
+                const w_score = evaluator.evaluate(board.game_board, board.Cell.own, .{ .x = @intCast(col), .y = @intCast(row) }) catch |err| {
+                    std.debug.print("Error: {}\n", .{err});
                     return 0;
                 };
-                const b_score = evaluator.evaluate(board.game_board, board.Cell.opponent, .{ .x = @intCast(col), .y = @intCast(row) }) catch {
-                    // std.debug.print("Error: {}\n", .{err});
+                const b_score = evaluator.evaluate(board.game_board, board.Cell.opponent, .{ .x = @intCast(col), .y = @intCast(row) }) catch |err| {
+                    std.debug.print("Error: {}\n", .{err});
                     return 0;
                 };
-                const score = w_score + b_score;
+                const score: i64 = w_score + b_score;
                 if (score > 0) {
                     threats[nb_threats] = .{ .row = row, .col = col, .score = score };
                     nb_threats += 1;
@@ -481,8 +475,8 @@ pub fn findThreats(map: []board.Cell, threats: []Threat, size: u32) u16 {
 
 // Generates a heuristic score by summing up threats of white
 // and black pieces on the board. strategy is based on zero-sum principle.
-fn evaluatePosition(map: []board.Cell, comptime size: u32, player: board.Cell) i32 {
-    var score_sum: i32 = 0;
+fn evaluatePosition(map: []board.Cell, comptime size: u32, player: board.Cell) i64 {
+    var score_sum: i64 = 0;
 
     // Evaluate all pieces on the board
     comptime var row: u16 = 0;
@@ -493,8 +487,8 @@ fn evaluatePosition(map: []board.Cell, comptime size: u32, player: board.Cell) i
             const cell = map[row_offset + col];
             if (cell != board.Cell.empty) {
                 // Add score for own pieces, subtract for opponent's
-                const score = evaluator.evaluate(board.game_board, cell, .{ .x = @intCast(col), .y = @intCast(row) }) catch  {
-                    // std.debug.print("Error: {}\n", .{err});
+                const score = evaluator.evaluate(board.game_board, cell, .{ .x = @intCast(col), .y = @intCast(row) }) catch |err| {
+                    std.debug.print("Error: {}\n", .{err});
                     return 0;
                 } * if (cell == board.Cell.opponent) 1 else -1;
                 score_sum += score;
@@ -504,7 +498,7 @@ fn evaluatePosition(map: []board.Cell, comptime size: u32, player: board.Cell) i
     return if (player == board.Cell.opponent) score_sum else -score_sum;
 }
 
-fn getHeuristicVal(map: []board.Cell, zobrist_table: *zobrist.ZobristTable, comptime size: u32, player: board.Cell) i32 {
+fn getHeuristicVal(map: []board.Cell, zobrist_table: *zobrist.ZobristTable, comptime size: u32, player: board.Cell) i64 {
     if (zobrist_table.lookupHeuristic()) |cached_heuristic| {
         return cached_heuristic;
     }
@@ -518,8 +512,8 @@ fn getHeuristicVal(map: []board.Cell, zobrist_table: *zobrist.ZobristTable, comp
 fn maximize(map: []board.Cell,
     zobrist_table: *zobrist.ZobristTable,
     depth: u8,
-    alpha_in: i32,
-    beta_in: i32,
+    alpha_in: i64,
+    beta_in: i64,
     comptime size: u32,
     threats: []Threat) ?Threat
 {
@@ -576,8 +570,8 @@ fn maximize(map: []board.Cell,
 fn minimize(map: []board.Cell,
     zobrist_table: *zobrist.ZobristTable,
     depth: u8,
-    alpha_in: i32,
-    beta_in: i32,
+    alpha_in: i64,
+    beta_in: i64,
     comptime size: u32,
     threats: []Threat) ?Threat
 {
@@ -649,8 +643,8 @@ pub fn minimax(map: []board.Cell,
     zobrist_table: *zobrist.ZobristTable,
     depth: u8,
     comptime isMaximizing: bool,
-    alpha_in: i32,
-    beta_in: i32,
+    alpha_in: i64,
+    beta_in: i64,
     comptime size: u32) ?Threat
 {
     node += 1;
@@ -683,8 +677,8 @@ pub fn minimax(map: []board.Cell,
 // Finds the best move for the AI using minimax algorithm, zobrist transposition table
 pub fn findBestMove(comptime size: comptime_int) Threat {
     const current_board = &board.game_board;
-    evaluator = Evaluator.init(Allocator) catch  {
-        // std.debug.print("Error: {}\n", .{err});
+    evaluator = Evaluator.init(Allocator) catch |err| {
+        std.debug.print("Error: {}\n", .{err});
         return Threat{ .row = 0, .col = 0, .score = 0 };
     };
     defer evaluator.deinit();
@@ -695,10 +689,10 @@ pub fn findBestMove(comptime size: comptime_int) Threat {
 
     _ = zobrist.ztable.calculateHash(current_board.map);
 
-    if (minimax(current_board.map, &zobrist.ztable, 5, true, std.math.minInt(i32), std.math.maxInt(i32), comptime size)) |move| {
-        // const avg_cut_depth: f32 = @as(f32, @floatFromInt(cumulative_cut_depth)) / @as(f32, @floatFromInt(alpha_cut + beta_cut));
-        // std.debug.print("Alpha cut: {d}, Beta cut: {d}, Average cut depth: {}\n", .{alpha_cut, beta_cut, avg_cut_depth});
-        // std.debug.print("Node explored: {d}\n", .{node});
+    if (minimax(current_board.map, &zobrist.ztable, 5, true, std.math.minInt(i64), std.math.maxInt(i64), comptime size)) |move| {
+        const avg_cut_depth: f32 = @as(f32, @floatFromInt(cumulative_cut_depth)) / @as(f32, @floatFromInt(alpha_cut + beta_cut));
+        std.debug.print("Alpha cut: {d}, Beta cut: {d}, Average cut depth: {}\n", .{alpha_cut, beta_cut, avg_cut_depth});
+        std.debug.print("Node explored: {d}\n", .{node});
         return move;
     } else { // The computer is loosing
         const cell = board.findRandomValidCell(current_board.*, main.random) catch {

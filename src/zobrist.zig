@@ -25,7 +25,7 @@ pub const ZobristTable = struct {
     // Member variables
     size: u32,
     transposition_table: []?Entry,
-    heuristics_table: []?i32,
+    heuristics_table: []?i64,
     zobrist_table: [2][20][20]Key,
     current_hash: Key,
 
@@ -34,7 +34,7 @@ pub const ZobristTable = struct {
         var self = ZobristTable{
             .size = board_size,
             .transposition_table = try allocator.alloc(?Entry, TableSize),
-            .heuristics_table = try allocator.alloc(?i32, TableSize),
+            .heuristics_table = try allocator.alloc(?i64, TableSize),
             .zobrist_table = undefined,
             .current_hash = 0,
         };
@@ -84,7 +84,7 @@ pub const ZobristTable = struct {
         }
     }
 
-    pub fn storeHeuristic(self: *ZobristTable, score: i32) void {
+    pub fn storeHeuristic(self: *ZobristTable, score: i64) void {
         const index = self.current_hash % TableSize;
         self.heuristics_table[index] = score;
     }
@@ -99,7 +99,7 @@ pub const ZobristTable = struct {
         };
     }
 
-    pub fn lookupHeuristic(self: *ZobristTable) ?i32 {
+    pub fn lookupHeuristic(self: *ZobristTable) ?i64 {
         const index = self.current_hash % TableSize;
         const entry = self.heuristics_table[index];
 
